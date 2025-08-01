@@ -1,8 +1,8 @@
 #include <Arduino.h>
 
-const int IN1=12; // 5 for ARD
-const int IN2=14; // 6 for ARD
-const int ENA=13; // 7 for ARD
+const int IN1=5;
+const int IN2=6;
+const int ENA=8;
 
 
 void setup() {
