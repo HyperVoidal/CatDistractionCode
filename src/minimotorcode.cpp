@@ -18,36 +18,34 @@ void setup() {
     randomSeed(analogRead(A0));
 }
 
-void lasertoggle() {
+
+void randomisertoggle(int weightOFF, int weightON, int toggleInterval, int OutPin) {
     /*
-    This is a system to intuitively toggle the laser pointer in a way that favours being on compared to off.
-    The basic system design is to run a randomiser to toggle the laser every few seconds, where the chance to
-    switch off is weighted more heavily to whatever mode (on/off) it is currently in.
+    Redesigned laser pointer toggle to now work with any random toggle system, factoring weights, intervals,
+    and the pin to write data to. Depending on how I decide to handle the servo motor systems, this may affect that 
+    or may instead just be used as a more optimal process for the laser pointer.
     */
     unsigned long currentMillis = millis();
     if (currentMillis - startmillis < toggleInterval) {
-        return; // Too soon, wait more
+        return; //too soon, wait longer before trying
     }
 
-    int weightOffL = 10; //weighting against turning the laser off
-    int weightOnL = 5; //weighting against turning the laser on
-
-    //run seperate laser randomisers dependent on whether the laser is on or off
-    int setValWeights = laserStatus ? weightOffL : weightOnL;
+    //set the value weights to either on or off
+    int setValWeights = laserStatus ? weightOFF : weightON;
 
     //randomiser component and logic
     int toggleCheck = random(0, setValWeights);
     if (toggleCheck == 0) {
-        laserStatus = !laserStatus;
-        Serial.print("Laser set to ");
-        Serial.println(laserStatus ? "ON" : "OFF");
+        laserStatus == !laserStatus;
+        Serial.print(String("Laser set to: ") + (laserStatus ? "ON" : "OFF"));
     } else {
-        Serial.println("Laser randomiser failed, retaining status");
+        Serial.print("Laser randomiser returned no switch value");
     }
-    
-    //convert logic to high/low outputs
-    digitalWrite(lpPin, laserStatus ? HIGH : LOW);
-    
+
+    //convert logic to high/low
+    digitalWrite(OutPin, laserStatus ? HIGH : LOW);
+
+
 }
 
 void loop() {
@@ -62,7 +60,7 @@ void loop() {
     delay(1500);
 
     //run laser pointer randomiser
-    lasertoggle();
+    randomisertoggle(10, 5, toggleInterval, lpPin);
 
 
 }
