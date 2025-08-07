@@ -3,7 +3,7 @@
 const int IN1=5;
 const int IN2=6;
 const int ENA=9; //needs to be 3, 5, 6, 9, 10, or 11 as these are the PWM specific pins
-int speed = 150;
+int speed = 135;
 
 
 void setup() {
