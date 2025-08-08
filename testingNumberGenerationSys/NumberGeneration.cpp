@@ -30,7 +30,7 @@ int sampleTriangular(int min, int max, int center) {
         x = max - sqrt((1 - u) * (max - min) * (max - center));
     }
 
-    return std::clamp((int)round(x), min, max);
+    return std::clamp((int)round(x), min, max); //clamp to minimum and maximum values
 }
 
 int motorcontrol() {

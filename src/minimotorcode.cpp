@@ -51,7 +51,7 @@ void randomisertoggle(int weightOFF, int weightON, unsigned long toggleInterval,
 }
 
 
-int sampleTriangular(int min, int max, int center, float power) {
+int sampleTriangular(int mini, int maxi, int center) {
     /*
     This function is built from the planning phase of my Randomised Value Generation system.
     In order to achieve a system where each potential angle for turret movement is prioritised differently based 
@@ -59,59 +59,53 @@ int sampleTriangular(int min, int max, int center, float power) {
     prioritising values closer to a given centre in a random selection, then re-selecting based on the last selected 
     value. This process repeats in a loop to provide continuously smooth and semi-close values while still providing the opportunity for change.
     */
-    float u = random(0, 10000) / 10000.0;  // Random float [0,1)
-    float c = (float)(center - min) / (max - min);  // normalized center [0,1]
+    float u = rand() / (RAND_MAX + 1.0f); // random float in [0, 1)
+    float c = (float)(center - mini) / (maxi - mini);
+    float x;
 
-    float raw;
     if (u < c) {
-        raw = min + sqrt(u * (max - min) * (center - min));
+        x = mini + sqrt(u * (maxi - mini) * (center - mini));
     } else {
-        raw = max - sqrt((1 - u) * (max - min) * (max - center));
+        x = maxi - sqrt((1-u) * (maxi - mini) * (maxi - center));
     }
 
-    float offset = raw - center;
-
-    float adjustedOffset = pow(abs(offset), power);  // Raise offset to power
-    if (offset < 0) adjustedOffset *= -1;            // Restore direction
-
-    int adjusted = round(center + adjustedOffset);
-
-    // Optional: clamp to safe bounds
-    return constrain(adjusted, -360, 360);
+    return max(min((int)round(x), maxi), mini); //clamp to the minimum and maximum values
 }
 
-void motorRotateTurret(Servo& s, int maxTime) {
+int motorRotateTurret(Servo& s, float maxTime, int range) {
     int prevAngle = currentAngle;
-    int newAngle = sampleTriangular(-361, 361, prevAngle, 1.0);
+    int mini = max(currentAngle - range, -361);
+    int maxi = min(currentAngle + range, 361);
+    int newAngle = sampleTriangular(mini, maxi, prevAngle);
     Serial.println(String("Rotating to: ") + newAngle);
 
     int step = (newAngle > prevAngle) ? 1 : -1;
     int steps = abs(newAngle - prevAngle);
-    int durationMs = round((newAngle/360) * maxTime);
-    int delayPerStep = durationMs / steps;
+
+    //ensure floatingpoint division for durationMs
+    int durationMs = (int)(maxTime * steps / 720.0);
+    int delayPerStep = (steps > 0) ? (durationMs / steps) : 0;
 
     for (int angle = prevAngle; angle != newAngle; angle += step) {
-        s.write(angle);
         delay(delayPerStep);
-        Serial.println(angle);
+        s.write(angle);
     }
+
+    //after for loop, ensure final angle is guaranteed to be met by re-calling it
     s.write(newAngle);
+    Serial.println(String("Rotated to: ") + newAngle);
+    return newAngle;
 }
 
 void loop() {
-    //Serial.println("Running servo direction control"); 
-    // Note to self: Servo direction control recommended for implementing proper weighted 
-    // random movements to laser pointer in emulating animal movement patterns
-    /* tServo.write(0); //initial angle
-    delay(1000);
-    tServo.write(90);
-    delay(500);
-    tServo.write(180);
-    delay(1500); */
+    /*
+    Next steps - adjust the motorRotateTurret function to only output the angles and time delays, then handle the rotations incrementally during the main loop
+    this is so I can avoid freezing the other components while rotates are running
+    */
+
 
     //run laser pointer randomiser
     randomisertoggle(10, 5, toggleInterval, lpPin);
-    motorRotateTurret(tServo, 2000);
-
-
+    //update currentAngle to new rotation point
+    currentAngle = motorRotateTurret(tServo, 2000.0, 80);
 }
