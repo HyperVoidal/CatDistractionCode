@@ -83,7 +83,7 @@ int sampleTriangular(int min, int max, int center, float power) {
 void motorRotateTurret(Servo& s, int maxTime) {
     int prevAngle = currentAngle;
     int newAngle = sampleTriangular(-361, 361, prevAngle, 1.0);
-    Serial.println("Rotating to: " + newAngle);
+    Serial.println(String("Rotating to: ") + newAngle);
 
     int step = (newAngle > prevAngle) ? 1 : -1;
     int steps = abs(newAngle - prevAngle);
@@ -93,6 +93,7 @@ void motorRotateTurret(Servo& s, int maxTime) {
     for (int angle = prevAngle; angle != newAngle; angle += step) {
         s.write(angle);
         delay(delayPerStep);
+        Serial.println(angle);
     }
     s.write(newAngle);
 }
@@ -101,12 +102,12 @@ void loop() {
     //Serial.println("Running servo direction control"); 
     // Note to self: Servo direction control recommended for implementing proper weighted 
     // random movements to laser pointer in emulating animal movement patterns
-    tServo.write(0); //initial angle
+    /* tServo.write(0); //initial angle
     delay(1000);
     tServo.write(90);
     delay(500);
     tServo.write(180);
-    delay(1500);
+    delay(1500); */
 
     //run laser pointer randomiser
     randomisertoggle(10, 5, toggleInterval, lpPin);
