@@ -6,7 +6,17 @@ const int lpPin = 2;
 const unsigned long toggleInterval = 3000;
 unsigned long startmillis;
 bool laserStatus = false;
+
+
 int currentAngle = 0;
+int prevAngle = 0;
+int delayPerStep = 0;
+int newAngle = 0;
+int steps = 0;
+int stepsremaining = 0;
+unsigned long lastRotationTime = 0;
+unsigned long lastTriggerTime = 0;
+const unsigned long rotationCool = 2500; //milliseconds
 
 Servo tServo; // create servo object
 
@@ -73,20 +83,21 @@ int sampleTriangular(int mini, int maxi, int center) {
 }
 
 int motorRotateTurret(Servo& s, float maxTime, int range) {
-    int prevAngle = currentAngle;
+    prevAngle = currentAngle;
     int mini = max(currentAngle - range, -361);
     int maxi = min(currentAngle + range, 361);
-    int newAngle = sampleTriangular(mini, maxi, prevAngle);
+    newAngle = sampleTriangular(mini, maxi, prevAngle);
     Serial.println(String("Rotating to: ") + newAngle);
 
-    int step = (newAngle > prevAngle) ? 1 : -1;
-    int steps = abs(newAngle - prevAngle);
+    steps = abs(newAngle - prevAngle);
+    stepsremaining = steps;
 
-    //ensure floatingpoint division for durationMs
     int durationMs = (int)(maxTime * steps / 720.0);
-    int delayPerStep = (steps > 0) ? (durationMs / steps) : 0;
+    delayPerStep = (steps > 0) ? (durationMs / steps) : 0;
 
-    for (int angle = prevAngle; angle != newAngle; angle += step) {
+    
+
+    /* for (int angle = prevAngle; angle != newAngle; angle += step) {
         delay(delayPerStep);
         s.write(angle);
     }
@@ -95,17 +106,33 @@ int motorRotateTurret(Servo& s, float maxTime, int range) {
     s.write(newAngle);
     Serial.println(String("Rotated to: ") + newAngle);
     return newAngle;
+ */
+}
+
+void triggerMotorRotate(Servo& s) {
+    if (stepsremaining > 0) {
+        int stepDirection = (newAngle > prevAngle) ? 1 : -1;
+        int targetAngle = currentAngle + stepDirection;
+        s.write(targetAngle);
+        currentAngle = targetAngle;
+        stepsremaining--;
+        if (stepsremaining == 0) {
+            Serial.println(String("Finished at: ") + currentAngle);
+            lastRotationTime = millis(); // cooldown starts after finish
+        }
+    }
 }
 
 void loop() {
-    /*
-    Next steps - adjust the motorRotateTurret function to only output the angles and time delays, then handle the rotations incrementally during the main loop
-    this is so I can avoid freezing the other components while rotates are running
-    */
-
-
-    //run laser pointer randomiser
     randomisertoggle(10, 5, toggleInterval, lpPin);
-    //update currentAngle to new rotation point
-    currentAngle = motorRotateTurret(tServo, 2000.0, 80);
+
+    unsigned long now = millis();
+    if (stepsremaining == 0 && now - lastRotationTime >= rotationCool) {
+        motorRotateTurret(tServo, 2000.0, 80);
+    }
+
+    if (stepsremaining > 0 && now - lastTriggerTime >= delayPerStep) {
+        triggerMotorRotate(tServo);
+        lastTriggerTime = now;
+    }
 }

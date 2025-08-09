@@ -3,6 +3,9 @@
 const int IN1=5;
 const int IN2=6;
 const int ENA=9; //needs to be 3, 5, 6, 9, 10, or 11 as these are the PWM specific pins
+const int IN3=7;
+const int IN4=8;
+const int ENA2=11;
 int speed = 135;
 
 
@@ -10,6 +13,9 @@ void setup() {
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(ENA, OUTPUT);
+  pinMode(IN3, OUTPUT);
+  pinMode(IN4, OUTPUT);
+  pinMode(ENA2, OUTPUT);
   Serial.begin(9600);
 }
 
@@ -31,16 +37,34 @@ void Motor1_Brake() {
   analogWrite(ENA, 0);
 }
 
+void Motor2_Forward(int Speed) {
+  digitalWrite(IN3,HIGH);
+  digitalWrite(IN4,LOW);
+  analogWrite(ENA, Speed);
+}
+
+void Motor2_Backward(int Speed) {
+  digitalWrite(IN3,LOW);
+  digitalWrite(IN4,HIGH);
+  analogWrite(ENA, Speed);
+}
+
+void Motor2_Brake() {
+  digitalWrite(IN3,LOW);
+  digitalWrite(IN4,LOW);
+  analogWrite(ENA, 0);
+}
+
 void loop() {
   while (true) {
   Motor1_Brake();
-  //Motor2_Brake();
+  Motor2_Brake();
   delay(250);
   Motor1_Forward(speed);
-  //Motor2_Forward(200);
+  Motor2_Forward(200);
   delay(750);
   Motor1_Brake();
-  //Motor2_Brake();
+  Motor2_Brake();
   delay(250);
   /*
   Motor1_Backward(speed);
