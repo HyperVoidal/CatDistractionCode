@@ -57,15 +57,19 @@ void Motor2_Brake() {
 
 void loop() {
   while (true) {
-  Motor1_Brake();
-  Motor2_Brake();
-  delay(250);
-  Motor1_Forward(speed);
-  Motor2_Forward(200);
-  delay(750);
-  Motor1_Brake();
-  Motor2_Brake();
-  delay(250);
+    Serial.println("Hello!");
+    Motor1_Brake();
+    Motor2_Brake();
+    delay(250);
+    Motor1_Forward(speed);
+    Motor2_Forward(speed);
+    delay(750);
+    Motor1_Brake();
+    Motor2_Brake();
+    delay(750);
+    Motor1_Backward(speed);
+    Motor2_Backward(speed);
+    delay(250);
   /*
   Motor1_Backward(speed);
   Motor2_Backward(200);
