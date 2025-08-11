@@ -40,19 +40,19 @@ void Motor1_Brake() {
 void Motor2_Forward(int Speed) {
   digitalWrite(IN3,HIGH);
   digitalWrite(IN4,LOW);
-  analogWrite(ENA, Speed);
+  analogWrite(ENA2, Speed);
 }
 
 void Motor2_Backward(int Speed) {
   digitalWrite(IN3,LOW);
   digitalWrite(IN4,HIGH);
-  analogWrite(ENA, Speed);
+  analogWrite(ENA2, Speed);
 }
 
 void Motor2_Brake() {
   digitalWrite(IN3,LOW);
   digitalWrite(IN4,LOW);
-  analogWrite(ENA, 0);
+  analogWrite(ENA2, 0);
 }
 
 void loop() {
@@ -70,13 +70,6 @@ void loop() {
     Motor1_Backward(speed);
     Motor2_Backward(speed);
     delay(250);
-  /*
-  Motor1_Backward(speed);
-  Motor2_Backward(200);
-  delay(750);
-  */
-  //Serial.println(speed);
-  //speed = speed - 25;
   }
 }
 

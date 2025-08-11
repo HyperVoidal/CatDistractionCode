@@ -1,10 +1,11 @@
 import serial.tools.list_ports
+import serial
 import time
 import pygame
 import math
+import re
 
-ESP32_NAME = "ESP32test"
-ESP32_MAC = "C8F09E9B7702"
+HC05HWID = '001403050925'
 
 pygame.init()
 WIDTH, HEIGHT = 800, 600
@@ -14,53 +15,37 @@ clock = pygame.time.Clock()
 FPS = 60
 font = pygame.font.SysFont(None, 24)
 
-def findBluePorts_esp32():
-    ports = serial.tools.list_ports.comports()
-    esp32_ports = []
-    for port in ports:
-        if "Bluetooth" in port.description and ESP32_MAC in port.hwid:
-            port_type = "Unknown"
-            if "Outgoing" in port.description:
-                port_type = "Outgoing"
-            elif "Incoming" in port.description:
-                port_type = "Incoming"
-            esp32_ports.append({
-                "device": port.device,
-                "description": port.description,
-                "hwid": port.hwid,
-                "type": port_type
-            })
-    return esp32_ports
-
 def debug_list_ports():
     ports = serial.tools.list_ports.comports()
     print("All available serial ports:")
     for port in ports:
         print(f"  Port: {port.device}, Description: {port.description}, HWID: {port.hwid}")
-
-def BluePort_Link():
-    esp32_ports = findBluePorts_esp32()
-    if not esp32_ports:
-        print("No ESP32 Bluetooth serial ports found.")
-    else:
-        print("Detected ESP32 Bluetooth serial ports:")
-        for port in esp32_ports:
-            print(f"  Port: {port['device']}, Description: {port['description']}")
         
-    return port['device']
-            
+def findBlueMod():
+    ports = serial.tools.list_ports.comports()
+    bt_ports = []
     
-
-#basic echo-response communication with ESP32 over BT
-""" if __name__ == "__main__":
-    port = BluePort_Link()
-    ser = serial.Serial(port, 115200, timeout=1)
-    while True:
-        data = input("> ")
-        ser.write((data + "\n").encode())
-        response = ser.readline()
-        print(f"[ESP32]: {response.decode()}")
-    ser.close() """
+    for port in ports:
+        if "Standard Serial over Bluetooth link" in port.description:
+            mac_match = re.search(r'&([0-9A-F]{12})_C00000000', port.hwid, re.IGNORECASE)
+            if mac_match:
+                mac = mac_match.group(1)
+                # Filter out invalid MACs (like all zeroes)
+                if mac != "000000000000":
+                    bt_ports.append([port.device, mac])
+    
+    print(bt_ports)
+    a = 0
+    for i in bt_ports:
+        if bt_ports[a][1] == HC05HWID:
+            return str(bt_ports[a][0])
+        a += 1
+        
+    
+        
+debug_list_ports()
+CPort = findBlueMod()
+print(CPort)
     
 #drawing circle movement indicator UI
 CENTRE = (WIDTH // 2, HEIGHT // 2)
@@ -70,16 +55,18 @@ inner_radius = 90
 pressed_quadrant = set()
 
 #open serial port
-port = BluePort_Link()
+port = findBlueMod()
 while True:
     try:
-        ser = serial.Serial(port, baudrate=115200, timeout=1)
+        ser = serial.Serial(port, baudrate=9600, timeout=1)
         break
     except serial.serialutil.SerialException:
         print(f"Timeout error triggered. Retrying connection to port: {port}")
+        time.sleep(2)
 sendtickrate = 0.25 #send data every 0.5s
 starttick = 0
 manualmode = False
+lasermode = False
 
 def draw_quadrant(CENTRE, OUTER_RADIUS, start_angle, end_angle, colour, offset=(0, 0), inner_radius=50):
     # Points along the outer arc
@@ -141,13 +128,26 @@ while running:
     manual_col = (150, 150, 150)
     pygame.draw.rect(screen, manual_col, manual_rect, border_radius=20)
     headMODE = font.render("Manual Mode", True, (0, 0, 0))
-    ena = font.render("ENABLED", True, (0, 0, 0))
-    dis = font.render("DISABLED", True, (0, 0, 0))
+    enaMAN = font.render("ENABLED", True, (0, 0, 0))
+    disMAN = font.render("DISABLED", True, (0, 0, 0))
     screen.blit(headMODE, (647, 40))
     if manualmode == False:
-        screen.blit(ena, (660, 92))
+        screen.blit(enaMAN, (660, 92))
     else:
-        screen.blit(dis, (660, 92))
+        screen.blit(disMAN, (660, 92))
+    
+    #laser pointer control button
+    laser_rect = pygame.Rect(133, 60, 100, 80)
+    laser_col = (150, 150, 150)
+    pygame.draw.rect(screen, laser_col, laser_rect, border_radius=20)
+    laserMODE = font.render("Laser Mode", True, (0, 0, 0))
+    enaLAS = font.render("ENABLED", True, (0, 0, 0))
+    disLAS = font.render("DISABLED", True, (0, 0, 0))
+    screen.blit(laserMODE, (137, 40))
+    if lasermode == False:
+        screen.blit(enaLAS, (140, 92))
+    else:
+        screen.blit(disLAS, (140, 92))
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -159,10 +159,15 @@ while running:
                 print(f"Clicked quadrant {quad+1}")
             else:
                 if manual_rect.collidepoint(event.pos):
-                    #update manual col, send command to esp32 saying 'swap'
+                    #update manual col, send command to Arduino saying 'swap'
                     manualmode = not manualmode  # Toggle manual mode
                     print(f"Manual mode is now {'ENABLED' if manualmode else 'DISABLED'}")
-                    ser.write(("SWAP\n").encode())  # Send command to ESP32
+                    ser.write(("SWAP\n").encode())  # Send command to Arduino
+                if laser_rect.collidepoint(event.pos):
+                    #update laserpoint col, send command to arduino saying 'LASER'
+                    lasermode = not lasermode
+                    print(f"Laser is now {'ENABLED' if lasermode else 'DISABLED'}")
+                    ser.write(("LASER\n").encode())
                     
         elif event.type == pygame.MOUSEBUTTONUP:
             quad = get_quadrant(event.pos, CENTRE, inner_radius, RADIUS)
@@ -192,7 +197,7 @@ while running:
             elif event.key == pygame.K_a:
                 pressed_quadrant.discard(3)
             print("Pressed quadrants:", pressed_quadrant)
-        #send input data to ESP32
+        #send input data to Arduino
         current_time = time.time()
         if current_time - starttick >= sendtickrate:
             if str(pressed_quadrant) == "set()":
@@ -202,9 +207,11 @@ while running:
                 data = (halfdata).strip("}")
             ser.write((data + "\n").encode())
             response = ser.readline()
-            print(f"[ESP32]: {response.decode()}")
+            try:
+                print(f"[Arduino]: {response.decode('utf-8')}")
+            except UnicodeDecodeError:
+                print("[Arduino]: Corruption error - cannot decode message. Bypassing for integrity.")
             starttick = current_time
-
             
         
 
