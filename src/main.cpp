@@ -12,7 +12,6 @@
 SoftwareSerial bluetooth(2, 3); // RX, TX
 
 bool Manual = false;
-bool laserStatus = false;
 unsigned long pulseValue;
 bool forwardMove = true;
 
@@ -31,6 +30,8 @@ const int echoPin = 12;
 const int triggerPin = 13;
 
 int Speed = 135;
+
+String received;
 
 void setup() {
   Serial.begin(9600);    
@@ -166,10 +167,52 @@ void checkDistance() {
   pulseValue = pulseIn(echoPin, HIGH);
 }
 
+// ===== AUTO MOVEMENT =====
+enum AutoState { AUTO_FORWARD, AUTO_TURN };
+AutoState autoState = AUTO_FORWARD;
+
+unsigned long autoStart = 0;
+unsigned long autoDuration = 0;
+
+void updateAutoMovement() {
+    unsigned long now = millis();
+    if (pulseValue >= 750){
+      if (now - autoStart >= autoDuration) {
+          // Pick next movement
+          if (autoState == AUTO_FORWARD) {
+              // Decide turn type
+              if (random(0, 2) == 0) {
+                  // Wide arc turn
+                  autoState = AUTO_TURN;
+                  autoDuration = 1500;
+                  if (random(0, 2) == 0){
+                    LeftTurn(1, Speed);
+                  } else {
+                    RightTurn(1, Speed);
+                  }
+              } else {
+                  // In-place turn
+                  autoState = AUTO_TURN;
+                  autoDuration = 800;
+                  if (random(0, 2) == 0){
+                    LeftTurn(0, Speed);
+                  } else {
+                    RightTurn(0, Speed);
+                  }
+              }
+          } else {
+              // Return to forward motion
+              autoState = AUTO_FORWARD;
+              autoDuration = 2000;
+              Forward(Speed);
+          }
+
+          autoStart = now;
+      }
+    }
+}
+
 void NonManual(){
-  //Main HC-SR04 controls, motor adjustments
-  //Basically all the automated movement systems.
-  //This may need to be split into multiple functions later down the line.
   checkDistance();
   if (pulseValue >= 750) { //750 is approx 20cm, determined from pretesting using the USSens.cpp file
     //execute main movement code
@@ -225,13 +268,22 @@ void NonManual(){
   } 
 }
 
-void togglelaser() {
-  laserStatus = !laserStatus;
-  digitalWrite(laserPin, laserStatus); //booleans auto-map to high and low.
+// ===== LASER TOGGLE =====
+bool laserStatus = false;
+unsigned long lastLaserToggle = 0;
+const unsigned long laserDebounce = 200; // ms
 
+void tryToggleLaser() {
+    unsigned long now = millis();
+    if (now - lastLaserToggle > laserDebounce) {
+        laserStatus = !laserStatus;
+        digitalWrite(laserPin, laserStatus);
+        lastLaserToggle = now;
+    }
 }
 
-void loop() {
+// ===== Bluetooth System =====
+void bluetoothCheck() {
   if (bluetooth.available()) {
     String received = bluetooth.readStringUntil('\n'); //Received will end up as 0 or 1 or 2 or 3 or 0,1 or 0,3 or 2,1 or 2,3 or SWAP or LASER
     received.trim();
@@ -242,41 +294,49 @@ void loop() {
 
     // Respond back to Bluetooth
     bluetooth.println("Received: " + received);
+  }
+}
 
-    if (received == "SWAP") {
+void manualControl() {
+  //I wanted to do a case switch here but apparently that doesn't work with string comparisons in arduino code
+  if (received == "0") {
+    Forward(Speed);
+  } else if (received == "1") {
+    LeftTurn(0, Speed);
+  } else if (received == "2") {
+    Backward(Speed);
+  } else if (received == "3") {
+    RightTurn(0, Speed);
+  } else if (received == "0, 1") {
+    LeftTurn(1, Speed);
+  } else if (received == "0, 3") {
+    RightTurn(1, Speed);
+  } else if (received == "2, 1") {
+    LeftTurn(2, Speed);
+  } else if (received == "2, 3") {
+    RightTurn(2, Speed);
+  } else if (received == "SWAP") {
       Manual = !Manual;
-      }
-    if (received == "LASER") {
-        togglelaser();
-      }
-    if (received == "STOP") {
+  } else if (received == "LASER") {
+      tryToggleLaser();
+  } else if (received == "STOP") {
       BrakeM1();
       BrakeM2();
-    }
-    if (Manual == false) {
+  } else {
+    //do nothing idk
+  }
+}
+
+
+
+void loop() {
+    if (Manual) {
+      manualControl();
+    } else if (Manual == false) {
       //No control functions are accepted
       NonManual();
     } else {
-      //I wanted to do a case switch here but apparently that doesn't work with string comparisons in arduino code
-      if (received == "0") {
-        Forward(Speed);
-      } else if (received == "1") {
-        LeftTurn(0, Speed);
-      } else if (received == "2") {
-        Backward(Speed);
-      } else if (received == "3") {
-        RightTurn(0, Speed);
-      } else if (received == "0, 1") {
-        LeftTurn(1, Speed);
-      } else if (received == "0, 3") {
-        RightTurn(1, Speed);
-      } else if (received == "2, 1") {
-        LeftTurn(2, Speed);
-      } else if (received == "2, 3") {
-        RightTurn(2, Speed);
-      } else {
-        // Do nothing or stop motors
-      }
+      
     }
-  }
 }
+
