@@ -128,8 +128,8 @@ while running:
     manual_col = (150, 150, 150)
     pygame.draw.rect(screen, manual_col, manual_rect, border_radius=20)
     headMODE = font.render("Manual Mode", True, (0, 0, 0))
-    enaMAN = font.render("ENABLED", True, (0, 0, 0))
-    disMAN = font.render("DISABLED", True, (0, 0, 0))
+    enaMAN = font.render("ENABLE", True, (0, 0, 0))
+    disMAN = font.render("DISABLE", True, (0, 0, 0))
     screen.blit(headMODE, (647, 40))
     if manualmode == False:
         screen.blit(enaMAN, (660, 92))
@@ -141,8 +141,8 @@ while running:
     laser_col = (150, 150, 150)
     pygame.draw.rect(screen, laser_col, laser_rect, border_radius=20)
     laserMODE = font.render("Laser Mode", True, (0, 0, 0))
-    enaLAS = font.render("ENABLED", True, (0, 0, 0))
-    disLAS = font.render("DISABLED", True, (0, 0, 0))
+    enaLAS = font.render("ENABLE", True, (0, 0, 0))
+    disLAS = font.render("DISABLE", True, (0, 0, 0))
     screen.blit(laserMODE, (137, 40))
     if lasermode == False:
         screen.blit(enaLAS, (140, 92))
@@ -197,21 +197,23 @@ while running:
             elif event.key == pygame.K_a:
                 pressed_quadrant.discard(3)
             print("Pressed quadrants:", pressed_quadrant)
-        #send input data to Arduino
-        current_time = time.time()
-        if current_time - starttick >= sendtickrate:
-            if str(pressed_quadrant) == "set()":
-                data = "STOP"
-            else:
-                halfdata = (str(pressed_quadrant)).strip("{")
-                data = (halfdata).strip("}")
-            ser.write((data + "\n").encode())
-            response = ser.readline()
-            try:
-                print(f"[Arduino]: {response.decode('utf-8')}")
-            except UnicodeDecodeError:
-                print("[Arduino]: Corruption error - cannot decode message. Bypassing for integrity.")
-            starttick = current_time
+
+
+    #send input data to Arduino - isolated from event check loop
+    current_time = time.time()
+    if current_time - starttick >= sendtickrate:
+        if str(pressed_quadrant) == "set()":
+            data = "STOP"
+        else:
+            halfdata = (str(pressed_quadrant)).strip("{")
+            data = (halfdata).strip("}")
+        ser.write((data + "\n").encode())
+        response = ser.readline()
+        try:
+            print(f"[Arduino]: {response.decode('utf-8')}")
+        except UnicodeDecodeError:
+            print("[Arduino]: Corruption error - cannot decode message. Bypassing for integrity.")
+        starttick = current_time
             
         
 

@@ -8,7 +8,7 @@ void setup()
 {
   pinMode(echoPin, INPUT);
   pinMode(triggerPin, OUTPUT);
-  Serial.begin(115200);
+  Serial.begin(9600);
 }
 
 void loop()
