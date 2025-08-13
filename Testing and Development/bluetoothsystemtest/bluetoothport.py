@@ -54,16 +54,25 @@ colour=(150, 150, 150)
 inner_radius = 90
 pressed_quadrant = set()
 
+last_valid_data = None
+last_input_time = 0
+hold_delay = 0.5  # half a second to retain last input
+
 #open serial port
 port = findBlueMod()
-while True:
+retries = 10
+while retries > 0:
     try:
         ser = serial.Serial(port, baudrate=9600, timeout=1)
         break
     except serial.serialutil.SerialException:
-        print(f"Timeout error triggered. Retrying connection to port: {port}")
+        print(f"Retrying connection to port: {port}")
         time.sleep(2)
-sendtickrate = 0.25 #send data every 0.5s
+        retries -= 1
+if retries == 0:
+    print("Failed to connect to Bluetooth device. Exiting.")
+    exit()
+sendtickrate = 0.5 #send data every 0.25s
 starttick = 0
 manualmode = False
 lasermode = False
@@ -148,6 +157,13 @@ while running:
         screen.blit(enaLAS, (140, 92))
     else:
         screen.blit(disLAS, (140, 92))
+        
+    #Emergency pause button
+    emer_rect = pygame.Rect(350, 60, 100, 80)
+    emer_col = (150, 150, 150)
+    pygame.draw.rect(screen, emer_col, emer_rect, border_radius=20)
+    tag = font.render("EMERGENCY STOP (5s)", True, (0, 0, 0))
+    screen.blit(tag, (357, 92))
 
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -168,6 +184,10 @@ while running:
                     lasermode = not lasermode
                     print(f"Laser is now {'ENABLED' if lasermode else 'DISABLED'}")
                     ser.write(("LASER\n").encode())
+                if emer_rect.collidepoint(event.pos):
+                    #Send in emergency brake signal
+                    print(f"EMERGENCY STOP ACTIVATED")
+                    ser.write(("STOP\n").encode())
                     
         elif event.type == pygame.MOUSEBUTTONUP:
             quad = get_quadrant(event.pos, CENTRE, inner_radius, RADIUS)
@@ -203,10 +223,15 @@ while running:
     current_time = time.time()
     if current_time - starttick >= sendtickrate:
         if str(pressed_quadrant) == "set()":
-            data = "STOP"
+            if time.time() - last_input_time < hold_delay and last_valid_data:
+                data = last_valid_data  # re-send last data
+            else:
+                data = "N/A"
         else:
             halfdata = (str(pressed_quadrant)).strip("{")
             data = (halfdata).strip("}")
+            last_valid_data = data
+            last_input_time = time.time()
         ser.write((data + "\n").encode())
         response = ser.readline()
         try:

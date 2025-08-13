@@ -8,6 +8,9 @@
 //Pin 12, 13 can be allocated to USSens and 10 to the laser pointer since that can be isolated or swapped to 0,1 for deployment
 //Consider looking into using the analog pins for ENAs to free up extra space if necessary
 
+//in an ideal world where I could have the rotating turret, pin10 would be the last available pinset to attach 
+//the motor to, since the one I would use could operate from the arduino.
+
 
 SoftwareSerial bluetooth(2, 3); // RX, TX
 
@@ -49,6 +52,7 @@ void setup() {
   pinMode(triggerPin, OUTPUT);
   //Laser Pin
   pinMode(laserPin, OUTPUT);
+  digitalWrite(laserPin, LOW);
   
   //Adjust random seed generation to get reseeded random values from noise generation
   randomSeed(analogRead(A0));
@@ -158,115 +162,89 @@ void BrakeM2() {
   analogWrite(ENA2, 0);
 }
 
+unsigned long pulseValue;
+
 void checkDistance() {
   digitalWrite(triggerPin, LOW);
   delay(10); // to ensure we off it enough, just in case if the ultrasonic still echoes around which usually happens in a closed chamber.
   digitalWrite(triggerPin, HIGH);
   delayMicroseconds(10);
   digitalWrite(triggerPin, LOW); 
-  pulseValue = pulseIn(echoPin, HIGH);
+  pulseValue = pulseIn(echoPin, HIGH, 20000);
+  if (pulseValue == 0) {
+    pulseValue == 99999;
+  }
 }
 
 // ===== AUTO MOVEMENT =====
-enum AutoState { AUTO_FORWARD, AUTO_TURN };
+enum AutoState { AUTO_FORWARD, AUTO_TURN, AUTO_BACKWARD };
 AutoState autoState = AUTO_FORWARD;
 
 unsigned long autoStart = 0;
 unsigned long autoDuration = 0;
+bool rightturn = false; //false == left, true == right
 
 void updateAutoMovement() {
     unsigned long now = millis();
-    if (pulseValue >= 750){
-      if (now - autoStart >= autoDuration) {
-          // Pick next movement
-          if (autoState == AUTO_FORWARD) {
-              // Decide turn type
-              if (random(0, 2) == 0) {
-                  // Wide arc turn
-                  autoState = AUTO_TURN;
-                  autoDuration = 1500;
-                  if (random(0, 2) == 0){
-                    LeftTurn(1, Speed);
-                  } else {
-                    RightTurn(1, Speed);
-                  }
-              } else {
-                  // In-place turn
-                  autoState = AUTO_TURN;
-                  autoDuration = 800;
-                  if (random(0, 2) == 0){
-                    LeftTurn(0, Speed);
-                  } else {
-                    RightTurn(0, Speed);
-                  }
-              }
+    checkDistance(); // updates global pulseValue
+
+    if (pulseValue < 750) {
+        // Too close: go backward
+        if (autoState != AUTO_BACKWARD) {
+            autoState = AUTO_BACKWARD;
+            autoStart = now;
+            autoDuration = 1000; // move backward for 1 second
+            Backward(Speed);
+        } else if (now - autoStart >= autoDuration) {
+            // After backing up, go into a turn
+            autoState = AUTO_TURN;
+            autoStart = now;
+            autoDuration = 800;
+            rightturn = random(0, 2);
+            rightturn ? RightTurn(0, Speed) : LeftTurn(0, Speed);
+        }
+        return; // skip other logic while backing up
+    }
+
+    if (pulseValue >= 750 && pulseValue < 1200) {
+        if (autoState != AUTO_TURN && now - autoStart >= autoDuration) {
+            // Obstacle in warning range: do a turn
+            autoState = AUTO_TURN;
+            autoStart = now;
+            autoDuration = (random(0, 2) == 0) ? 1500 : 800;
+            rightturn = random(0, 2);
+            rightturn ? RightTurn(0, Speed) : LeftTurn(0, Speed);
+        } else if (autoState == AUTO_TURN && now - autoStart >= autoDuration) {
+            // After turning, go forward again
+            autoState = AUTO_FORWARD;
+            autoStart = now;
+            autoDuration = 2000;
+            Forward(Speed);
+        }
+    } else {
+      // Clear path: move forward, but occasionally vary movement
+      if (autoState != AUTO_FORWARD || now - autoStart >= autoDuration) {
+          autoState = AUTO_FORWARD;
+          autoStart = now;
+
+          // Randomly decide if we go straight or curve
+          int choice = random(1, 11);  // 1-10 inclusive
+          if (choice == 1) {
+              // Arc left
+              autoDuration = 1500;
+              LeftTurn(0, Speed);
+          } else if (choice == 2) {
+              // Arc right
+              autoDuration = 1500;
+              RightTurn(0, Speed);
           } else {
-              // Return to forward motion
-              autoState = AUTO_FORWARD;
+              // Go straight
               autoDuration = 2000;
               Forward(Speed);
           }
-
-          autoStart = now;
+        }
       }
     }
-}
-
-void NonManual(){
-  checkDistance();
-  if (pulseValue >= 750) { //750 is approx 20cm, determined from pretesting using the USSens.cpp file
-    //execute main movement code
-    /*
-    current plans for movement code:
-    Tank is initialised, moves forwards for a set duration, then rolls a random number check between 1 and 30. 
-    If the value exceeds 25, the tank will initiate a turn.
-    If the value equals 28, the tank will turn while maintaining forward direction.
-    Turns will be determined by a 1 in 2 roll, with each value corresponding to one direction.
-    */
-    checkDistance();
-    int randval = random(0, 31);
-    if (randval >= 28) {
-      BrakeM1();
-      BrakeM2();
-      int rand2 = random(1, 3); //returns 1 or 2, for some reason arduino random is inclusive of min but exclusive of max.
-      if (rand2 == 1) {
-        RightTurn((forwardMove ? 1 : 2), Speed);
-      } else {
-        LeftTurn((forwardMove ? 1 : 2), Speed);
-      }
-    } else if (randval >= 25) {
-      int rand2 = random(1, 3); //returns 1 or 2, for some reason arduino random is inclusive of min but exclusive of max.
-      if (rand2 == 1) {
-        RightTurn(0, Speed);
-      } else {
-        LeftTurn(0, Speed);
-      }
-    } else {
-      forwardMove ? Forward(Speed) : Backward(Speed);
-    }
-  } else {
-    int randvalue = random(0, 2); //randomly select to either rotate left or right. Outside of while loop to avoid going back on previous movements
-    do {
-      //execute avoidance manouvres
-      checkDistance(); //break to return to normal movements if stable pulsevalue is large enough that the tank can continue
-      BrakeM1();
-      BrakeM2();
-      delay(400);
-      Backward(Speed);
-      delay(500);
-      //rotate in place in direction according to randvalue
-      if (randvalue == 0) {
-        RightTurn(0, Speed);
-      } else {
-        LeftTurn(0 , Speed);
-      }
-      delay(500); //guessed about 45 degrees, needs verification
-      BrakeM1();
-      BrakeM2();
-      delay(200); //pause to stabilise the US Sensor
-    } while (pulseValue < 750);
-  } 
-}
 
 // ===== LASER TOGGLE =====
 bool laserStatus = false;
@@ -315,13 +293,13 @@ void manualControl() {
     LeftTurn(2, Speed);
   } else if (received == "2, 3") {
     RightTurn(2, Speed);
-  } else if (received == "SWAP") {
-      Manual = !Manual;
-  } else if (received == "LASER") {
-      tryToggleLaser();
   } else if (received == "STOP") {
-      BrakeM1();
-      BrakeM2();
+    BrakeM1();
+    BrakeM2();
+    delay(5000); //sudden stop in situation such as emergency, enables user to take hands off controls to pick up tank
+  } else if (received == "N/A") { //pause when no controls are being entered
+    BrakeM1();
+    BrakeM2(); 
   } else {
     //do nothing idk
   }
@@ -334,7 +312,16 @@ void loop() {
       manualControl();
     } else if (Manual == false) {
       //No control functions are accepted
-      NonManual();
+      updateAutoMovement();
+      if (received == "SWAP") {
+        Manual = !Manual;
+      } else if (received == "LASER") {
+        tryToggleLaser();
+      } else if (received == "STOP") {
+        BrakeM1();
+        BrakeM2();
+        delay(5000); //sudden stop in situation such as emergency, enables user to take hands off controls to pick up tank
+      }
     } else {
       
     }
