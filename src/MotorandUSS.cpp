@@ -5,7 +5,7 @@ const int IN2=6;
 const int ENA=9; //needs to be 3, 5, 6, 9, 10, or 11 as these are the PWM specific pins
 const int IN3=7;
 const int IN4=8;
-const int ENA2=11;
+const int ENA2=10;
 int speed = 130;
 
 const int echoPin = 12;
