@@ -146,7 +146,7 @@ void loop() {
   Serial.print("Distance: ");
   Serial.println(distance);
 
-  if (distance < 20) {  // Adjust this threshold as needed
+  if (distance < 50) {  // Originally was 20cm, but the tank moves so damn fast that I need to increase the range to allow for exxective slowdown time
     // Obstacle detected!
     Motor1_Brake();
     Motor2_Brake();
