@@ -1,7 +1,7 @@
 #include <Arduino.h>
 
-const int IN1=5;
-const int IN2=6;
+const int IN2=5;
+const int IN1=6;
 const int ENA=9; //needs to be 3, 5, 6, 9, 10, or 11 as these are the PWM specific pins
 const int IN3=7;
 const int IN4=8;
@@ -14,6 +14,7 @@ unsigned long pulseValue; // to ensure buffer doesn't overflow
 
 
 void setup() {
+  delay(5000);
   pinMode(IN1, OUTPUT);
   pinMode(IN2, OUTPUT);
   pinMode(ENA, OUTPUT);
@@ -62,7 +63,33 @@ void Motor2_Brake() {
   analogWrite(ENA2, 0);
 }
 
-void LeftTurn(int direction, int Speed) {
+void LeftTurn(int Speed) {
+  //Direction is 0 or otherwise, one tread is stationary and the other takes full power
+  //M1 (right) rotates forward
+  digitalWrite(IN1, HIGH);
+  digitalWrite(IN2, LOW);
+  analogWrite(ENA, Speed);
+  //M2 (left) doesn't move
+  digitalWrite(IN3, LOW);
+  digitalWrite(IN4, LOW);
+  analogWrite(ENA2, 0);
+  delay(800);
+}
+
+void RightTurn(int Speed) {
+  //Direction is 0 or otherwise, one tread is stationary and the other takes full power
+    //M1 (right) doesn't move
+    digitalWrite(IN1, LOW);
+    digitalWrite(IN2, LOW);
+    analogWrite(ENA, 0);
+    //M2 (left) rotates forward
+    digitalWrite(IN3, HIGH);
+    digitalWrite(IN4, LOW);
+    analogWrite(ENA2, Speed);
+    delay(800);
+}
+
+/* void LeftTurn(int direction, int Speed) {
   if (direction == 1) {
     //Direction is forward overall
     //Speed is normal for right side motor
@@ -89,18 +116,18 @@ void LeftTurn(int direction, int Speed) {
     delay(800);
 
   } else {
-    //Direction is 0 or otherwise, tank remains stationary while turning
+    //Direction is 0 or otherwise, one tread is stationary and the other takes full power
     //M1 (right) rotates forward
     digitalWrite(IN1, HIGH);
     digitalWrite(IN2, LOW);
     analogWrite(ENA, Speed);
     //M2 (left) rotates backward
     digitalWrite(IN3, LOW);
-    digitalWrite(IN4, HIGH);
-    analogWrite(ENA2, Speed);
+    digitalWrite(IN4, LOW);
+    analogWrite(ENA2, 0);
     delay(800);
   }
-}
+} */
 
 void checkUltrasonic() {
   digitalWrite(triggerPin, LOW);
@@ -115,7 +142,7 @@ void checkUltrasonic() {
 void loop() {
   checkUltrasonic(); // Always check distance
   
-  float distance = pulseValue * 0.034 / 2; // Convert time to distance in cm
+  float distance = pulseValue * 0.034 / 2; // Convert time to distance in cm using speed of sound calc
   Serial.print("Distance: ");
   Serial.println(distance);
 
@@ -132,8 +159,12 @@ void loop() {
     Motor1_Brake();
     Motor2_Brake();
     delay(500); // Stop again
-
-    LeftTurn(0, speed);
+    
+    
+    int dirturn = random(0, 2);
+    dirturn ? RightTurn(speed) : LeftTurn(speed);
+    Motor1_Brake();
+    Motor2_Brake();
   } else {
     // Path is clear
     Motor1_Forward(speed);
