@@ -1,2 +1,2 @@
 # CatDistractionCode
-ESP32 Code for the Cat Distractor
+C++ Code for the Cat Distractor
